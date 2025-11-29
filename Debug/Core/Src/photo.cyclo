@@ -1,0 +1,9 @@
+../Core/Src/photo.c:15:6:Camera_Init	1
+../Core/Src/photo.c:21:19:CameraConfig	1
+../Core/Src/photo.c:34:6:ActivateCameraA	1
+../Core/Src/photo.c:41:6:ActivateCameraB	1
+../Core/Src/photo.c:48:19:poll_command_done	4
+../Core/Src/photo.c:64:19:cam_write_reg16_uint16	4
+../Core/Src/photo.c:78:19:cam_read_reg16_uint16	4
+../Core/Src/photo.c:100:6:HAL_DCMI_XferCpltCallback	1
+../Core/Src/photo.c:106:19:DCMICapture	1

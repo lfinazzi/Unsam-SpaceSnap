@@ -1,0 +1,7 @@
+../Core/Src/ls_comms.c:19:6:HAL_UART_RxCpltCallback	2
+../Core/Src/ls_comms.c:28:6:HAL_I2C_SlaveRxCpltCallback	2
+../Core/Src/ls_comms.c:37:6:TransmitBufferUART	1
+../Core/Src/ls_comms.c:42:6:TransmitBufferi2C	1
+../Core/Src/ls_comms.c:47:6:Log	1
+../Core/Src/ls_comms.c:57:6:CopyVolatile	2
+../Core/Src/ls_comms.c:64:6:TransformTs	1
