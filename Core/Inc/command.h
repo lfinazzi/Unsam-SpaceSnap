@@ -15,7 +15,7 @@
 #define NUM_COMMANDS 7		// this needs to be changed to reflect exact number of istructions or risk an illegal memory access - TODO
 
 // Handler type for all commands
-typedef void (*command_handler_t)(uint8_t*);
+typedef HAL_StatusTypeDef (*command_handler_t)(uint8_t*);
 extern char* log_message;
 
 // Command structure definition
@@ -46,16 +46,16 @@ int ExecuteCommand(const command_t *command, uint8_t *opcode);
  * 2nd Byte: tries to attempt (1-15, 4b), compression (0, 1, 2, 3, 2b)  - [X, X, compression[1], compression[0], tries[3], tries[2], tries[1], tries[0]]
  * 3rd Byte: -
  **********************************************************/
-void CMD_TakePicture(uint8_t *opcode);
+HAL_StatusTypeDef CMD_TakePicture(uint8_t *opcode);
 
 
 // high level command functions - TODO
-void CMD_TakePictureForced(uint8_t *opcode);
-void CMD_TransmitFrameCompressed(uint8_t *opcode);
-void CMD_TransmitFrameRaw(uint8_t *opcode);
-void CMD_GetStatus(uint8_t *opcode);
-void CMD_BackupVolatileMemory(uint8_t *opcode);
-void CMD_ResetPayload(uint8_t *opcode);
+HAL_StatusTypeDef CMD_TakePictureForced(uint8_t *opcode);
+HAL_StatusTypeDef CMD_TransmitFrameCompressed(uint8_t *opcode);
+HAL_StatusTypeDef CMD_TransmitFrameRaw(uint8_t *opcode);
+HAL_StatusTypeDef CMD_GetStatus(uint8_t *opcode);
+HAL_StatusTypeDef CMD_BackupVolatileMemory(uint8_t *opcode);
+HAL_StatusTypeDef CMD_ResetPayload(uint8_t *opcode);
 
 
 #endif // __COMMAND_H__

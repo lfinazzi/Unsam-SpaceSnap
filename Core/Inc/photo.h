@@ -64,15 +64,23 @@
 #define RAW_PHOTO_BYTE_SIZE 		  (2*H*L)								// in bytes
 #define NUM_TRANSFERS				  (RAW_PHOTO_BYTE_SIZE / 4U)
 #define NUM_BUFFERS 				  (3U)
-#define COMPRESSED_PHOTO_BASE_ADDRESS (RAW_PHOTO_BASE_ADDRESS) + (NUM_BUFFERS*RAW_PHOTO_BYTE_SIZE) 			// 16b data
+#define COMPRESSED_PHOTO_BASE_ADDRESS (RAW_PHOTO_BASE_ADDRESS) + (NUM_BUFFERS*RAW_PHOTO_BYTE_SIZE) 			// 16b data - TODO: add metadata
+
+#define COMPRESSED_PHOTO_BASE_ADDRESS_NV  (0x0)
+
+#define DEFAULT_Y_THRESHOLD 			  (40U)							// Default Y threshold for identifying black pixels
+#define MAX_ALLOWED_BLACK_PERCENTAGE 	  (50f)						// Max allowed percentage of black pixels in an image
 
 extern volatile uint8_t frame_done;
+extern volatile uint32_t compressed_photo_buffer_address_V;		// current address for saving compressed pictures into SRAM memory (volatile)
+extern volatile uint32_t compressed_photo_buffer_address_NV;	// current address for saving compressed pictures into FRAM memory (non-volatile)
 
-typedef struct {
-	uint16_t data[L*H];               // Image data in YCbCr 4:2:2 format
+// Will probably skip the usage of these structs in final implementation
+typedef struct {	uint16_t data[L*H];               // Image data in YCbCr 4:2:2 format
 	uint8_t  cam_number;			  // Number of camera with which picture was taken
 	uint32_t photo_timestamp;		  // photo timestamp
 	uint8_t  compression; 			  // compression quality (0 raw, 1 good, 2 standard, 3 poor)
+
 	uint8_t  index; 				  // index in volatile memory
 } raw_photo_t;
 
@@ -150,7 +158,13 @@ void HAL_DCMI_XferCpltCallback(DMA_HandleTypeDef *hdma);
  **********************************************************/
 HAL_StatusTypeDef DCMICapture(uint8_t camera_number, uint8_t buffer_number);
 
-
+/**********************************************************
+ * Computes the percentage of black pixels in the image
+ * stored in the raw photo buffer, given a Y threshold and
+ * saves the result for later filtering. Uses Y value
+ * (brightness) only from YCbCr 4:2:2 format.
+ **********************************************************/
+void ComputeBlackPercentage(float *result, uint8_t buffer);
 
 #endif /* __PHOTO_H__ */
 

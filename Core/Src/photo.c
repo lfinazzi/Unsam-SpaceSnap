@@ -11,6 +11,8 @@
 #include "i2c.h"
 
 volatile uint8_t frame_done = 0;
+volatile uint32_t compressed_photo_buffer_address_V = COMPRESSED_PHOTO_BASE_ADDRESS;
+volatile uint32_t compressed_photo_buffer_address_NV = COMPRESSED_PHOTO_BASE_ADDRESS_NV;
 
 void Camera_Init(void)
 {
@@ -109,7 +111,29 @@ HAL_StatusTypeDef DCMICapture(uint8_t camera_number, uint8_t buffer_number)
 
 	// DCMI capture - frame_done = 1
 
-	frame_done = 0;
+	frame_done = 0;	// TODO - add a footer with image metadata
 
 	return HAL_OK;
+}
+
+void ComputeBlackPercentage(float *result, uint8_t buffer)
+{
+    uint32_t total_pixels = (uint32_t)(L * H);
+    uint32_t black_pixels = 0;
+
+    // Pointer to image in external SRAM
+    volatile uint16_t *p = (volatile uint16_t *)(IMAGE_BASE_ADDR + buffer * RAW_PHOTO_BYTE_SIZE);
+
+    // In YCbCr 4:2:2, 4 bytes = 2 pixels:  Y0 Cb  Y1 Cr
+    // So for each pixel:
+    //   Y = (p & 0xFF00) >> 8	- TODO: check that Y is MSB and format of camera output
+
+    for (uint32_t i = 0; i < total_pixels; i+=2) {	// increments by 2 because each pixel is saved in two B memory addresses
+        uint16_t y = (p[i] & 0xFF00) >> 8;		// First pixel Y
+
+        if (y < DEFAULT_Y_THRESHOLD) black_pixels++;
+
+    }
+
+    *result = (float)black_pixels * 100.0f / (float)total_pixels;
 }
