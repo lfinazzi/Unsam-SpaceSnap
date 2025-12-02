@@ -8,8 +8,9 @@
 #ifndef __PHOTO_H__
 #define __PHOTO_H__
 
-#include <stdint.h>
+//#include <stdint.h> in jpeg.h
 #include "dcmi.h"
+#include "jpeg.h"
 
 #define H 							  (640U)								// Horizontal resolution
 #define L 							  (480U)								// Vertical resolution
@@ -165,6 +166,19 @@ HAL_StatusTypeDef DCMICapture(uint8_t camera_number, uint8_t buffer_number);
  * (brightness) only from YCbCr 4:2:2 format.
  **********************************************************/
 void ComputeBlackPercentage(float *result, uint8_t buffer);
+
+/**********************************************************
+ * Compresses raw image data from specified buffer to JPEG
+ * format and stores it in compressed photo buffer area.
+ * Returns the size of compressed data in bytes.
+ * 
+ * Parameters:
+ *   - buffer_number: index of raw photo buffer (0-2)
+ *   - quality: JPEG compression quality (1-3)
+ *              1 = good, 2 = standard, 3 = poor
+ *   - compressed_size: pointer to store resulting size
+ **********************************************************/
+HAL_StatusTypeDef CompressToJPEG(uint8_t buffer_number, uint8_t quality, uint32_t *compressed_size);
 
 #endif /* __PHOTO_H__ */
 

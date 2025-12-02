@@ -5,6 +5,8 @@
  *      Author: finazzi
  */
 
+#define TJE_IMPLEMENTATION // for jpeg.h
+
 #include "photo.h"
 #include "dcmi.h"
 #include "fsmc.h"
@@ -136,4 +138,46 @@ void ComputeBlackPercentage(float *result, uint8_t buffer)
     }
 
     *result = (float)black_pixels * 100.0f / (float)total_pixels;
+}
+
+HAL_StatusTypeDef CompressToJPEG(uint8_t buffer_number, uint8_t quality, uint32_t *compressed_size)
+{
+	// Validate input parameters
+	if (buffer_number >= NUM_BUFFERS || quality < 1 || quality > 3) {
+		return HAL_ERROR;
+	}
+
+	// Pointer to raw image in external SRAM (YCbCr 4:2:2 format)
+	volatile uint16_t *raw_data = (volatile uint16_t *)(RAW_PHOTO_BASE_ADDRESS + buffer_number * RAW_PHOTO_BYTE_SIZE);
+
+	// Destination address for compressed data
+	volatile uint8_t *compressed_dest = (volatile uint8_t *)compressed_photo_buffer_address_V;
+
+	// Calculate available buffer size for compression
+	// (Total SRAM - space used by raw buffers)
+	uint32_t available_buffer_size = 0x100000U - (NUM_BUFFERS * RAW_PHOTO_BYTE_SIZE);
+
+	// Call JPEG encoder
+	// Note: raw_data is in YCbCr 4:2:2 format, which tje_encode_to_memory expects
+	int result = tje_encode_to_memory(
+		(uint8_t *)compressed_dest,
+		available_buffer_size,
+		compressed_size,
+		quality,
+		H,  // width = 640
+		L,  // height = 480
+		3,  // num_components = 3 for YCbCr
+		(const unsigned char *)raw_data
+	);
+
+	if (result == 0) {
+		// Compression failed
+		*compressed_size = 0;
+		return HAL_ERROR;
+	}
+
+	// Update compressed photo buffer address for next compression
+	compressed_photo_buffer_address_V += *compressed_size;
+
+	return HAL_OK;
 }
