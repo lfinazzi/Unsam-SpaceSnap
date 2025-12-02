@@ -148,19 +148,19 @@ HAL_StatusTypeDef CompressToJPEG(uint8_t buffer_number, uint8_t quality, uint32_
 	}
 
 	// Pointer to raw image in external SRAM (YCbCr 4:2:2 format)
-	volatile uint16_t *raw_data = (volatile uint16_t *)(RAW_PHOTO_BASE_ADDRESS + buffer_number * RAW_PHOTO_BYTE_SIZE);
+	volatile uint32_t *raw_data = (volatile uint32_t *)(RAW_PHOTO_BASE_ADDRESS + buffer_number * RAW_PHOTO_BYTE_SIZE);
 
 	// Destination address for compressed data
-	volatile uint8_t *compressed_dest = (volatile uint8_t *)compressed_photo_buffer_address_V;
+	volatile uint32_t *compressed_dest = (volatile uint32_t *)compressed_photo_buffer_address_V;
 
 	// Calculate available buffer size for compression
 	// (Total SRAM - space used by raw buffers)
-	uint32_t available_buffer_size = 0x100000U - (NUM_BUFFERS * RAW_PHOTO_BYTE_SIZE);
+	uint32_t available_buffer_size = 0x100000U - (NUM_BUFFERS * RAW_PHOTO_BYTE_SIZE);	// TODO - check this calculation
 
 	// Call JPEG encoder
 	// Note: raw_data is in YCbCr 4:2:2 format, which tje_encode_to_memory expects
 	int result = tje_encode_to_memory(
-		(uint8_t *)compressed_dest,
+		(uint8_t *)compressed_dest,			// how does this work? This is a uint32_t! Type cast unsafe. TODO
 		available_buffer_size,
 		compressed_size,
 		quality,

@@ -96,6 +96,7 @@ extern "C"
 
 #ifndef TJE_HEADER_GUARD
 #define TJE_HEADER_GUARD
+#define TJE_IMPLEMENTATION
 
 // Include necesario para tipos uint8_t, uint32_t, etc.
 #include <stdint.h>
