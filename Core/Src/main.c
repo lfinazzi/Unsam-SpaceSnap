@@ -106,7 +106,7 @@ int main(void)
   uint8_t current_instruction;								// current program instruction
   const command_t* current_command_pointer;					// pointer to current command
   uint8_t rx_buffer_copy[INSTRUCTION_SIZE];					// copy of rx buffer in program memory
-  int ret = 0;												// return for ExecuteCommand()
+  HAL_StatusTypeDef ret = 0;								// return for ExecuteCommand()
 
   MX_FSMC_Init();											// initializes external SRAM
   MX_DCMI_Init();											// Initializes DCMI
@@ -164,7 +164,7 @@ int main(void)
 			  current_command_pointer = GetCommand(current_instruction);
 
 			  ret = ExecuteCommand(current_command_pointer, &rx_buffer_copy[1]);
-			  if (ret) Log("Return success\n");
+			  if (ret == HAL_OK) Log("Return success\n");
 			  else Log("Return failure!\n");
 
 			  state = STATE_TRANSMIT_RESPONSE;

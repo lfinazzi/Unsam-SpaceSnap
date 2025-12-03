@@ -12,11 +12,12 @@
 #include <photo.h>
 #include <stdint.h>
 
-#define NUM_COMMANDS 7		// this needs to be changed to reflect exact number of istructions or risk an illegal memory access - TODO
+#define NUM_COMMANDS 	  (7U)		// this needs to be changed to reflect exact number of istructions or risk an illegal memory access - TODO
 
 // Handler type for all commands
 typedef HAL_StatusTypeDef (*command_handler_t)(uint8_t*);
 extern char* log_message;
+extern uint32_t timestamp;
 
 // Command structure definition
 typedef struct {
@@ -32,7 +33,7 @@ const extern command_t command_table[NUM_COMMANDS];
 
 // Lookup and execution functions
 const command_t* GetCommand(uint8_t instruction_number);
-int ExecuteCommand(const command_t *command, uint8_t *opcode);
+HAL_StatusTypeDef ExecuteCommand(const command_t *command, uint8_t *opcode);
 
 
 /**********************************************************

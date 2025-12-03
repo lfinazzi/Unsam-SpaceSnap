@@ -16,19 +16,29 @@ HAL_StatusTypeDef CMD_TakePicture(uint8_t *opcode) {
 	uint8_t buffer_number 	= opcode[0] & 0x06;	    	// 0000_0110 mask
 	uint8_t tries 		 	= opcode[1] & 0x0F;			// 0000_1111 mask
 	uint8_t compression		= opcode[1] & 0x30;			// 0011_0000 mask
+	uint8_t black_filtering = opcode[2] & 0x01;			// 0000_0001 mask
+	uint8_t black_threshold = opcode[2] & 0xFE;	 		// 1111_1110 mask - 7b
 
-	uint8_t current_tries   = 0;
-	float   result 			= 0.0f;
-	uint8_t success 		= 0;
+	float threshold_float = (float)black_threshold * (float)(BLACK_THRESHOLD_UNITS);
+
+	uint8_t current_tries    = 0;
+	float   result 			 = 0.0f;
+	uint8_t success 		 = 0;
+	uint32_t compressed_size = 0;
 
 	while (current_tries < tries) {
 		// send take picture command to corresponding camera
 		DCMICapture(cam_number, buffer_number);
 
+		if(black_filtering == 0) { // no black filtering
+			success = 1;
+			break;
+		}
+
 		// Check how much black is on picture. If it doesn't pass filtering, take another picture. Try the corresponding amount of times
 		ComputeBlackPercentage(&result, buffer_number);
 
-		if (result <= MAX_ALLOWED_BLACK_PERCENTAGE) {
+		if (result <= threshold_float) { // TODO - make it so that this value can be changed
 			success = 1;
 			break;	// picture accepted
 		}
@@ -36,39 +46,51 @@ HAL_StatusTypeDef CMD_TakePicture(uint8_t *opcode) {
 	}
 
 	if(success) {
-		// Compress photo in a buffer
-		// Save if to volatile memory address, location depends on global variable that keeps track of index
-		// Save a version of compressed picture to volatile memory, location depends on global variable that keeps track of index
-		// write to tx_buffer: success, index of picture saved and other metadata
+		CompressToJPEG(buffer_number, compression, &compressed_size); 	// compresses and saves compressed image to current index addres in SRAM
+
+		// Save a version of compressed picture to NVM
+
+
+		tx_buffer[0] = 0xA0;										// execution successful
+		tx_buffer[1] = (uint16_t)(timestamp & 0xFFFF0000 >> 16);	// timestamp MSB
+		tx_buffer[2] = (uint16_t)(timestamp & 0x0000FFFF      );	// timestamp LSB
+		// TODO - something else in return buffer?
 		return HAL_OK;
 	}
 	
-	//write to tx_buffer: success/failure, index of picture saved and other metadata
+	tx_buffer[0] = 0xB0; 		// execution failed
+	tx_buffer[1] = (uint16_t)(timestamp & 0xFFFF0000 >> 16);	// timestamp MSB
+	tx_buffer[2] = (uint16_t)(timestamp & 0x0000FFFF      );	// timestamp LSB
 	return HAL_ERROR;
 }
 
 // ===== Example Handlers =====
 HAL_StatusTypeDef CMD_TakePictureForced(uint8_t *opcode) {
-
+	return HAL_OK;
 }
 
 HAL_StatusTypeDef CMD_TransmitFrameCompressed(uint8_t *opcode) {
+	return HAL_OK;
 
 }
 
 HAL_StatusTypeDef CMD_TransmitFrameRaw(uint8_t *opcode) {
+	return HAL_OK;
 
 }
 
 HAL_StatusTypeDef CMD_GetStatus(uint8_t *opcode) {
+	return HAL_OK;
 
 }
 
 HAL_StatusTypeDef CMD_BackupVolatileMemory(uint8_t *opcode) {
+	return HAL_OK;
 
 }
 
 HAL_StatusTypeDef CMD_ResetPayload(uint8_t *opcode) {
+	return HAL_OK;
 
 }
 
@@ -117,9 +139,9 @@ const command_t* GetCommand(uint8_t instruction_number)
 }
 
 // ===== Execute Function =====
-int ExecuteCommand(const command_t *command, uint8_t *opcode)
+HAL_StatusTypeDef ExecuteCommand(const command_t *command, uint8_t *opcode)
 {
-    if (!command) return 0;
+    if (!command) return HAL_ERROR;
 
     command->handler(opcode);
     if(command->takes_opcode){
@@ -129,5 +151,5 @@ int ExecuteCommand(const command_t *command, uint8_t *opcode)
     }
     else
     	Log("Command executed successfully");
-    return 1;
+    return HAL_OK;
 }

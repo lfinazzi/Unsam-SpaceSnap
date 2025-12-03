@@ -34,34 +34,34 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := SpaceSnap Firmware
+BUILD_ARTIFACT_NAME := Unsam-SpaceSnap
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXECUTABLES += \
-SpaceSnap\ Firmware.elf \
+Unsam-SpaceSnap.elf \
 
 MAP_FILES += \
-SpaceSnap\ Firmware.map \
+Unsam-SpaceSnap.map \
 
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
-SpaceSnap\ Firmware.list \
+Unsam-SpaceSnap.list \
 
 
 # All Target
 all: main-build
 
 # Main-build Target
-main-build: SpaceSnap\ Firmware.elf secondary-outputs
+main-build: Unsam-SpaceSnap.elf secondary-outputs
 
 # Tool invocations
-SpaceSnap\ Firmware.elf SpaceSnap\ Firmware.map: $(OBJS) $(USER_OBJS) C:\Users\Us\Documents\UNSAMSat\SpaceSnap\ Firmware\STM32F217ZGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "SpaceSnap Firmware.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"C:\Users\Us\Documents\UNSAMSat\SpaceSnap Firmware\STM32F217ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="SpaceSnap Firmware.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Unsam-SpaceSnap.elf Unsam-SpaceSnap.map: $(OBJS) $(USER_OBJS) C:\Users\Us\Documents\UNSAMSat\Unsam-SpaceSnap\STM32F217ZGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "Unsam-SpaceSnap.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"C:\Users\Us\Documents\UNSAMSat\Unsam-SpaceSnap\STM32F217ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Unsam-SpaceSnap.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -70,14 +70,14 @@ default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-SpaceSnap\ Firmware.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "SpaceSnap Firmware.list"
+Unsam-SpaceSnap.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "Unsam-SpaceSnap.list"
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) SpaceSnap\ Firmware.elf SpaceSnap\ Firmware.list SpaceSnap\ Firmware.map SpaceSnap\\ Firmware.elf default.size.stdout
+	-$(RM) Unsam-SpaceSnap.elf Unsam-SpaceSnap.list Unsam-SpaceSnap.map default.size.stdout
 	-@echo ' '
 
 secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)

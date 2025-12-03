@@ -11,15 +11,19 @@
 #include "dcmi.h"
 #include "fsmc.h"
 #include "i2c.h"
+#include <stdio.h>
 
 volatile uint8_t frame_done = 0;
-volatile uint32_t compressed_photo_buffer_address_V = COMPRESSED_PHOTO_BASE_ADDRESS;
-volatile uint32_t compressed_photo_buffer_address_NV = COMPRESSED_PHOTO_BASE_ADDRESS_NV;
+volatile uint16_t* compressed_photo_buffer_address_V = (uint16_t*)COMPRESSED_PHOTO_BASE_ADDRESS;		// current save address for compressed
+volatile uint16_t* compressed_photo_buffer_address_NV = (uint16_t*)COMPRESSED_PHOTO_BASE_ADDRESS_NV;
+volatile uint16_t *p; 		// helper pointer to raw image buffer
 
-void Camera_Init(void)
+HAL_StatusTypeDef Camera_Init(void)
 {
 	HAL_GPIO_WritePin(GPIOA, CAM_GPIO_I2C_EN, GPIO_PIN_SET);			// Enable i2C transveicer
 	HAL_GPIO_WritePin(GPIOA, CAM_GPIO_POW_EN, GPIO_PIN_SET);			// Enable Camera power domains
+
+	return HAL_OK; // TODO
 }
 
 HAL_StatusTypeDef CameraConfig(uint8_t camera)	// TODO
@@ -48,21 +52,6 @@ void ActivateCameraB(void)
 	HAL_GPIO_WritePin(GPIOA, CAM_A_GPIO_PIN_EN, GPIO_PIN_RESET);		// Ensure Camera A is off
 	CameraConfig(1);													// Configures Camera B
 }
-
-HAL_StatusTypeDef poll_command_done(uint8_t camera, uint32_t timeout_ms)
-{
-    uint32_t t0 = HAL_GetTick();
-    uint16_t cmd;
-    while (HAL_GetTick() - t0 < timeout_ms) {
-        if (cam_read_reg16_uint16(camera, REG_COMMAND_REGISTER, &cmd) != HAL_OK) return HAL_ERROR;
-        if ((cmd & 0x8000U) == 0) { // doorbell (bit15) cleared
-            return HAL_OK;
-        }
-        HAL_Delay(5);
-    }
-    return HAL_TIMEOUT;
-}
-
 
 HAL_StatusTypeDef cam_write_reg16_uint16(uint8_t camera, uint16_t reg16, uint16_t val16)
 {
@@ -124,20 +113,22 @@ void ComputeBlackPercentage(float *result, uint8_t buffer)
     uint32_t black_pixels = 0;
 
     // Pointer to image in external SRAM
-    volatile uint16_t *p = (volatile uint16_t *)(IMAGE_BASE_ADDR + buffer * RAW_PHOTO_BYTE_SIZE);
+    p = (volatile uint16_t *)( RAW_PHOTO_BASE_ADDRESS + buffer*(RAW_PHOTO_BYTE_SIZE + METADATA_BYTES) );
 
     // In YCbCr 4:2:2, 4 bytes = 2 pixels:  Y0 Cb  Y1 Cr
     // So for each pixel:
     //   Y = (p & 0xFF00) >> 8	- TODO: check that Y is MSB and format of camera output
 
-    for (uint32_t i = 0; i < total_pixels; i+=2) {	// increments by 2 because each pixel is saved in two B memory addresses
-        uint16_t y = (p[i] & 0xFF00) >> 8;		// First pixel Y
+    for (uint32_t i = 0; i < total_pixels; i+=2) {	// increments by 2 because each pixel is saved in 2B memory addresses
+        uint16_t y = (p[i] & 0xFF00) >> 8;		    // address mask (MSB)
 
-        if (y < DEFAULT_Y_THRESHOLD) black_pixels++;
+        if (y < DEFAULT_BLACK_THRESHOLD) black_pixels++;
+
+        // TODO - could improve speed if break after it already reaches max allowed black pixels
 
     }
 
-    *result = (float)black_pixels * 100.0f / (float)total_pixels;
+    *result = (float)black_pixels / (float)total_pixels;
 }
 
 HAL_StatusTypeDef CompressToJPEG(uint8_t buffer_number, uint8_t quality, uint32_t *compressed_size)
@@ -148,26 +139,26 @@ HAL_StatusTypeDef CompressToJPEG(uint8_t buffer_number, uint8_t quality, uint32_
 	}
 
 	// Pointer to raw image in external SRAM (YCbCr 4:2:2 format)
-	volatile uint32_t *raw_data = (volatile uint32_t *)(RAW_PHOTO_BASE_ADDRESS + buffer_number * RAW_PHOTO_BYTE_SIZE);
+	volatile uint16_t *raw_data = (volatile uint16_t *)(RAW_PHOTO_BASE_ADDRESS + buffer_number * (RAW_PHOTO_BYTE_SIZE + METADATA_BYTES));
 
 	// Destination address for compressed data
-	volatile uint32_t *compressed_dest = (volatile uint32_t *)compressed_photo_buffer_address_V;
+	volatile uint16_t *compressed_dest = (volatile uint16_t *)compressed_photo_buffer_address_V;
 
 	// Calculate available buffer size for compression
 	// (Total SRAM - space used by raw buffers)
-	uint32_t available_buffer_size = 0x100000U - (NUM_BUFFERS * RAW_PHOTO_BYTE_SIZE);	// TODO - check this calculation
+	uint32_t available_buffer_size = 0x100000U - (NUM_BUFFERS * (RAW_PHOTO_BYTE_SIZE + METADATA_BYTES) );	// TODO - check this calculation
 
 	// Call JPEG encoder
 	// Note: raw_data is in YCbCr 4:2:2 format, which tje_encode_to_memory expects
 	int result = tje_encode_to_memory(
-		(uint8_t *)compressed_dest,			// how does this work? This is a uint32_t! Type cast unsafe. TODO
+		(uint16_t *)compressed_dest,			// TODO: IMPORTANT! Check this casting and how the function is saving to memory! Should we use HAL?
 		available_buffer_size,
 		compressed_size,
 		quality,
 		H,  // width = 640
 		L,  // height = 480
 		3,  // num_components = 3 for YCbCr
-		(const unsigned char *)raw_data
+		(const unsigned char *)raw_data			// TODO: This is also not correct
 	);
 
 	if (result == 0) {
@@ -181,3 +172,4 @@ HAL_StatusTypeDef CompressToJPEG(uint8_t buffer_number, uint8_t quality, uint32_
 
 	return HAL_OK;
 }
+

@@ -12,72 +12,51 @@
 #include "dcmi.h"
 #include "jpeg.h"
 
-#define H 							  (640U)								// Horizontal resolution
-#define L 							  (480U)								// Vertical resolution
+#define TJE_IMPLEMENTATION													// adds compression library
 
-// --------- Register / constant definitions (from Developer Guide) ----------
-#define REG_COMMAND_REGISTER          0x0040U   // SYSCTL command register (doorbell)
-#define REG_CMD_HANDLER_PARAMS_POOL0  0xFC00U   // command handler params pool (parameter 0)
-#define REG_CMD_HANDLER_PARAMS_POOL1  0xFC02U
+#define H 							  	 (640U)								// Horizontal resolution
+#define L 							  	 (480U)								// Vertical resolution
 
-// CamControl variables/regs (from Table 15)
-#define REG_CAM_FRAME_SCAN_CONTROL    0xC858U   // cam_frame_scan_control
-#define REG_CAM_OUTPUT_FORMAT         0xC96CU   // cam_output_format
-
-// Zoom/pan & windowing (example)
-#define REG_CAM_SENSOR_CFG_X_START    0xC802U
-#define REG_CAM_SENSOR_CFG_X_END      0xC806U
-#define REG_CAM_SENSOR_CFG_Y_START    0xC800U
-#define REG_CAM_SENSOR_CFG_Y_END      0xC804U
-
-// Helpful presets shown in DevGuide (enable parallel progressive)
-#define VAR_NTSC_PRESET_REG           0x9426U   // preset variable region used in examples
-#define VAR_PAL_PRESET_REG            0x9826U
-
-// SYSCTL slew / pad control (examples; adapt if you want other slew)
-#define REG_SLEW_DOUT                 0x0030U   // SYSCTL / pad slew (example register shown in DG)
-#define REG_PIXCLK_POLARITY           0x0016U   // example: PIXCLK polarity control bit(s)
 
 // I2C device addresses (10-bit)
 #ifndef CAM_A_I2C_ADDR
-	#define CAM_A_I2C_ADDR  		  (0x90)  // replace with your sensor address (7-bit typical)
+	#define CAM_A_I2C_ADDR  		 	 (0x90)  // replace with your sensor address (7-bit typical)
 #endif
 
 #ifndef CAM_B_I2C_ADDR
-	#define CAM_B_I2C_ADDR  		  (0xBA)  // if used; adjust as required
+	#define CAM_B_I2C_ADDR  		 	 (0xBA)  // if used; adjust as required
 #endif
 
-#define I2C_TIMEOUT_MS  			  (50U)
-#define DOORBELL_TIMEOUT_MS			  (100U)
-
-// Command register bits (per Host Command Interface)
-#define COMMAND_DOORBELL_BIT   		  (1U<<15)   // bit 15 = doorbell when set by host
-#define COMMAND_HOSTCMD_MASK   		  0x00FFU    // lower bits contain command result/status (check DG)
+#define I2C_TIMEOUT_MS  			  	 (50U)
+#define DOORBELL_TIMEOUT_MS			 	 (100U)
 
 // ------------------------ USS GPIO definitions ----------------------
-#define CAM_A_GPIO_PIN_EN			  (2U)
-#define CAM_B_GPIO_PIN_EN			  (3U)
-#define CAM_GPIO_I2C_EN				  (11U)
-#define CAM_GPIO_POW_EN				  (12U)
+#define CAM_A_GPIO_PIN_EN			  	 (2U)
+#define CAM_B_GPIO_PIN_EN			  	 (3U)
+#define CAM_GPIO_I2C_EN				  	 (11U)
+#define CAM_GPIO_POW_EN				  	 (12U)
 
 // ----------------------------- SRAM Memory ---------------------------
-#define RAW_PHOTO_BASE_ADDRESS 		  (0x60000000U)						// NOR SRAM BANK 1
-#define RAW_PHOTO_BYTE_SIZE 		  (2*H*L)								// in bytes
-#define NUM_TRANSFERS				  (RAW_PHOTO_BYTE_SIZE / 4U)
-#define NUM_BUFFERS 				  (3U)
-#define COMPRESSED_PHOTO_BASE_ADDRESS (RAW_PHOTO_BASE_ADDRESS) + (NUM_BUFFERS*RAW_PHOTO_BYTE_SIZE) 			// 16b data - TODO: add metadata
+#define RAW_PHOTO_BASE_ADDRESS 		  	 (0x60000000U)							// NOR SRAM BANK 1
+#define RAW_PHOTO_BYTE_SIZE 		  	 (2*H*L)								// in bytes
+#define NUM_TRANSFERS				  	 (RAW_PHOTO_BYTE_SIZE / 4U)
+#define NUM_BUFFERS 				  	 (3U)
+#define METADATA_BYTES 					 (5U)									// Cam number (1B), timestamp (4B)
+#define COMPRESSED_PHOTO_BASE_ADDRESS 	 (RAW_PHOTO_BASE_ADDRESS) + ( NUM_BUFFERS*(RAW_PHOTO_BYTE_SIZE + METADATA_BYTES) )
 
-#define COMPRESSED_PHOTO_BASE_ADDRESS_NV  (0x0)
+#define COMPRESSED_PHOTO_BASE_ADDRESS_NV (0x0)
 
-#define DEFAULT_Y_THRESHOLD 			  (40U)							// Default Y threshold for identifying black pixels
-#define MAX_ALLOWED_BLACK_PERCENTAGE 	  (50f)						// Max allowed percentage of black pixels in an image
+#define BLACK_THRESHOLD_UNITS 			 (0.0079f)						// Default Y threshold for identifying black pixels
+#define DEFAULT_BLACK_THRESHOLD 		 (0.2f)						// Max allowed percentage of black pixels in an image
 
 extern volatile uint8_t frame_done;
-extern volatile uint32_t compressed_photo_buffer_address_V;		// current address for saving compressed pictures into SRAM memory (volatile)
-extern volatile uint32_t compressed_photo_buffer_address_NV;	// current address for saving compressed pictures into FRAM memory (non-volatile)
+extern volatile uint16_t* compressed_photo_buffer_V;		// pointer for saving compressed pictures into SRAM memory (volatile)
+extern volatile uint16_t* compressed_photo_buffer_NV;		// pointer for saving compressed pictures into FRAM memory (non-volatile)
+extern volatile uint16_t* p;								// helper pointer to raw image buffer
 
 // Will probably skip the usage of these structs in final implementation
-typedef struct {	uint16_t data[L*H];               // Image data in YCbCr 4:2:2 format
+typedef struct {
+	uint16_t data[L*H];               // Image data in YCbCr 4:2:2 format
 	uint8_t  cam_number;			  // Number of camera with which picture was taken
 	uint32_t photo_timestamp;		  // photo timestamp
 	uint8_t  compression; 			  // compression quality (0 raw, 1 good, 2 standard, 3 poor)
@@ -106,7 +85,7 @@ typedef struct {
  * Function to initialize parameters for both cameras
  * in Unsam SpaceSnap
  **********************************************************/
-void Camera_Init(void);
+HAL_StatusTypeDef Camera_Init(void);
 
 /**********************************************************
  * Function to configure camera A or B with desired
@@ -127,12 +106,6 @@ void ActivateCameraA(void);
  * Function to enable camera B and disable camera A
  **********************************************************/
 void ActivateCameraB(void);
-
-/**********************************************************
- * Auxilliary function to poll command register doorbell
- * bit cleared (bit 15 is doorbell in cmd register example)
- **********************************************************/
-HAL_StatusTypeDef poll_command_done(uint8_t camera, uint32_t timeout_ms);
 
 /**********************************************************
  * Auxilliary function to write 16b value to 16b reg

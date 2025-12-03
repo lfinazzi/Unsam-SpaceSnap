@@ -96,7 +96,6 @@ extern "C"
 
 #ifndef TJE_HEADER_GUARD
 #define TJE_HEADER_GUARD
-#define TJE_IMPLEMENTATION
 
 // Include necesario para tipos uint8_t, uint32_t, etc.
 #include <stdint.h>
@@ -180,7 +179,7 @@ int tje_encode_with_func(tje_write_func* func,
 #include <string.h> // memcpy
 
 // Eliminamos assert y math para reducir dependencias
-#define assert(x) ((void)0)
+//#define assert(x) ((void)0)
 
 // Funciones matemáticas inline para evitar dependencia de math.h
 static inline float floorf_custom(float x) {
