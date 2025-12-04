@@ -11,8 +11,18 @@
 #include "i2c.h"
 #include "usart.h"
 
-#define INSTRUCTION_SIZE 4								// 1B instruction code + 3B opcode
-#define DATA_FRAME_SIZE 119								// maximum size in Bytes for Air MAC frame, 9B header, 110B data
+#define INSTRUCTION_SIZE 								(5U)		// 1B instruction code + 4B opcode
+#define DATA_FRAME_SIZE									(119U)		// maximum size in Bytes for Air MAC frame, 9B header, 110B data
+
+// TX Buffer return codes
+#define DCMI_CAPTURE_ERR								(0x50U)
+#define BLACK_FILTERING_ERR								(0x51U)
+#define CAPTURE_TIMEOUT_ERR								(0x52U)		// TODO - Implement this error code when timeout is implemented
+#define COMPRESSION_ERR									(0x53U)
+
+#define COMMAND_SUCCESS									(0x40U)
+#define COMMAND_FAILURE 								(0x41U)
+
 
 extern volatile uint8_t new_command_received;			// new command received flag
 extern uint8_t tx_buffer[DATA_FRAME_SIZE];				// tx data buffer

@@ -33,7 +33,8 @@ Core/Src/ls_comms.o: ../Core/Src/ls_comms.c ../Core/Inc/command.h \
  C:/Users/Us/STM32Cube/Repository/STM32Cube_FW_F2_V1.9.5/Drivers/STM32F2xx_HAL_Driver/Inc/stm32f2xx_hal_tim_ex.h \
  C:/Users/Us/STM32Cube/Repository/STM32Cube_FW_F2_V1.9.5/Drivers/STM32F2xx_HAL_Driver/Inc/stm32f2xx_hal_uart.h \
  ../Core/Inc/usart.h ../Core/Inc/photo.h ../Core/Inc/dcmi.h \
- ../Core/Inc/jpeg.h
+ ../Core/Inc/jpeg.h ../Core/Inc/photo.h ../Core/Inc/command.h \
+ ../Core/Inc/ls_comms.h
 ../Core/Inc/command.h:
 ../Core/Inc/ls_comms.h:
 ../Core/Inc/i2c.h:
@@ -74,3 +75,6 @@ C:/Users/Us/STM32Cube/Repository/STM32Cube_FW_F2_V1.9.5/Drivers/STM32F2xx_HAL_Dr
 ../Core/Inc/photo.h:
 ../Core/Inc/dcmi.h:
 ../Core/Inc/jpeg.h:
+../Core/Inc/photo.h:
+../Core/Inc/command.h:
+../Core/Inc/ls_comms.h:

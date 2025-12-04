@@ -17,8 +17,6 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include <command.h>
-#include <ls_comms.h>
 #include "main.h"
 #include "dcmi.h"
 #include "i2c.h"
@@ -27,8 +25,7 @@
 #include "usart.h"
 #include "gpio.h"
 #include "fsmc.h"
-#include <string.h>
-//#include "stm32f2xx_hal_sram.h"
+#include "photo.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -67,8 +64,20 @@ uint32_t timestamp;
 char *timestamp_string;
 char *log_message; 							// placeholder for log messages
 
-/* USER CODE END PV */
+volatile raw_photo_t* raw_buffer_1;
+volatile raw_photo_t* raw_buffer_2;
+volatile raw_photo_t* raw_buffer_3;
+volatile raw_photo_t* raw_buffers[NUM_BUFFERS];
 
+// Metadata for compressed photo buffer
+volatile compressed_metadata_t* compressed_metadata[MAX_COMPRESSED_PICS];
+uint16_t* compressed_photo_space;		// TODO - Check how we can initialize this memory statically. Program might crash if not done.
+uint16_t* current_compressed_address;
+uint8_t current_compressed_index;
+
+volatile uint16_t raw_photo_number_global;
+
+/* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
@@ -99,14 +108,12 @@ int main(void)
 
   /* USER CODE BEGIN Init */
 
-  for(size_t i = 0; i < DATA_FRAME_SIZE; i++)		// tx_buffer init
-	  tx_buffer[i] = 0x00;
-
   app_state_t state = STATE_IDLE;							// program starts in IDLE state
   uint8_t current_instruction;								// current program instruction
   const command_t* current_command_pointer;					// pointer to current command
   uint8_t rx_buffer_copy[INSTRUCTION_SIZE];					// copy of rx buffer in program memory
   HAL_StatusTypeDef ret = 0;								// return for ExecuteCommand()
+  raw_photo_number_global = 0;	// TODO - Save this in FRAM and initialize it here to preserve raw photo number in case of power down
 
   MX_FSMC_Init();											// initializes external SRAM
   MX_DCMI_Init();											// Initializes DCMI
@@ -119,6 +126,8 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
+  init_camera_buffers();		// Allocates memory for raw photo buffers
+  // TODO - Load contents of FRAM to SRAM (backup in case of power down)
   timestamp = HAL_GetTick(); 	// system timestamp in 1ms intervals - Updated by interrupt
 
   /* USER CODE END SysInit */
@@ -198,38 +207,38 @@ int main(void)
   */
 void SystemClock_Config(void)
 {
-	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-	/** Initializes the RCC Oscillators according to the specified parameters
-	* in the RCC_OscInitTypeDef structure.
-	*/
-	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-	RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-	RCC_OscInitStruct.PLL.PLLM = 4;
-	RCC_OscInitStruct.PLL.PLLN = 192;
-	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
-	RCC_OscInitStruct.PLL.PLLQ = 4;
-	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-	{
-	Error_Handler();
-	}
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLN = 192;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
-	/** Initializes the CPU, AHB and APB buses clocks
-	*/
-	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-							  |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
-	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
-	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
-	{
-	Error_Handler();
-	}
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
 }
 
 /* USER CODE BEGIN 4 */
@@ -242,13 +251,13 @@ void SystemClock_Config(void)
   */
 void Error_Handler(void)
 {
-	/* USER CODE BEGIN Error_Handler_Debug */
+  /* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
 	__disable_irq();
 	while (1)
 	{
 	}
-	/* USER CODE END Error_Handler_Debug */
+  /* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT

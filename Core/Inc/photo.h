@@ -11,6 +11,7 @@
 //#include <stdint.h> in jpeg.h
 #include "dcmi.h"
 #include "jpeg.h"
+#include "command.h"
 
 #define TJE_IMPLEMENTATION													// adds compression library
 
@@ -28,7 +29,6 @@
 #endif
 
 #define I2C_TIMEOUT_MS  			  	 (50U)
-#define DOORBELL_TIMEOUT_MS			 	 (100U)
 
 // ------------------------ USS GPIO definitions ----------------------
 #define CAM_A_GPIO_PIN_EN			  	 (2U)
@@ -39,46 +39,61 @@
 // ----------------------------- SRAM Memory ---------------------------
 #define RAW_PHOTO_BASE_ADDRESS 		  	 (0x60000000U)							// NOR SRAM BANK 1
 #define RAW_PHOTO_BYTE_SIZE 		  	 (2*H*L)								// in bytes
-#define NUM_TRANSFERS				  	 (RAW_PHOTO_BYTE_SIZE / 4U)
+#define DCMI_NUM_TRANSFERS				 (RAW_PHOTO_BYTE_SIZE / 4U)
 #define NUM_BUFFERS 				  	 (3U)
-#define METADATA_BYTES 					 (5U)									// Cam number (1B), timestamp (4B)
-#define COMPRESSED_PHOTO_BASE_ADDRESS 	 (RAW_PHOTO_BASE_ADDRESS) + ( NUM_BUFFERS*(RAW_PHOTO_BYTE_SIZE + METADATA_BYTES) )
+#define RAW_METADATA_SIZE 			     (10U)
+#define RAW_PHOTO_SIZE					 (RAW_PHOTO_BYTE_SIZE) + (RAW_METADATA_SIZE)
 
-#define COMPRESSED_PHOTO_BASE_ADDRESS_NV (0x0)
 
-#define BLACK_THRESHOLD_UNITS 			 (0.0079f)						// Default Y threshold for identifying black pixels
-#define DEFAULT_BLACK_THRESHOLD 		 (0.2f)						// Max allowed percentage of black pixels in an image
-
-extern volatile uint8_t frame_done;
-extern volatile uint16_t* compressed_photo_buffer_V;		// pointer for saving compressed pictures into SRAM memory (volatile)
-extern volatile uint16_t* compressed_photo_buffer_NV;		// pointer for saving compressed pictures into FRAM memory (non-volatile)
-extern volatile uint16_t* p;								// helper pointer to raw image buffer
-
-// Will probably skip the usage of these structs in final implementation
-typedef struct {
+typedef struct {					  // all 15b variables to avoid struct padding
+	uint16_t designator;			  // global raw photo number taken
+	uint16_t opcode[2]; 			  // opcodes sent to take picture 	- TODO: Define in MACRO
+	uint32_t timestamp;			      // timestamp is uint32_t
 	uint16_t data[L*H];               // Image data in YCbCr 4:2:2 format
-	uint8_t  cam_number;			  // Number of camera with which picture was taken
-	uint32_t photo_timestamp;		  // photo timestamp
-	uint8_t  compression; 			  // compression quality (0 raw, 1 good, 2 standard, 3 poor)
-
-	uint8_t  index; 				  // index in volatile memory
 } raw_photo_t;
 
 typedef struct {
-	raw_photo_t raw_buffer[3];
-} raw_photo_buffer_t;
+	uint8_t index;					  // index of compressed photo
+	uint16_t *address;			  	  // memory address start for picture
+	uint32_t size;				 	  // size of compressed photo
+	uint32_t timestamp;				  // internal timestamp
+	uint16_t opcode[2];				  // instruction + opcode, saved in 16b to avoid padding
+} compressed_metadata_t;
 
-typedef struct {
-	uint16_t *data;	                  // Image data in YCbCr 4:2:2 format
-	uint8_t  cam_number;			  // Number of camera with which picture was taken
-	uint32_t photo_timestamp;		  // photo timestamp
-	uint8_t  compression; 			  // compression quality (0 raw, 1 good, 2 standard, 3 poor)
-} compressed_photo_t;
+#define MAX_COMPRESSED_PICS 			 (100U)
+#define COMPRESSED_METADATA_SIZE		 (10U)
+#define COMPRESSED_METADATA_BASE_ADDR 	 (RAW_PHOTO_BASE_ADDRESS) + ( NUM_BUFFERS*RAW_PHOTO_SIZE )
+#define COMPRESSED_DATA_BASE_ADDR 	     (COMPRESSED_METADATA_BASE_ADDR) + (MAX_COMPRESSED_PICS * sizeof(compressed_metadata_t))
 
-typedef struct {
-	compressed_photo_t *photos;
-	uint8_t current_index;
-} compressed_photo_buffer_t;
+#define END_OF_MEMORY 				  	 (COMPRESSED_DATA_BASE_ADDR) + (0x7A120000U)   // Start: 0x6000_0000, Capacity: 2048M 16b addresses
+
+// ----------------------------- FRAM Memory ---------------------------
+#define START_ADDR_FRAM  				 (0x0)
+
+// ------------------------- Calculation constants ---------------------
+#define BLACK_THRESHOLD_UNITS 			 (0.0079f)						// Default Y threshold for identifying black pixels
+#define DEFAULT_BLACK_THRESHOLD 		 (0.2f)						// Max allowed percentage of black pixels in an image
+
+
+// Raw photo buffers
+extern volatile raw_photo_t* raw_buffer_1;
+extern volatile raw_photo_t* raw_buffer_2;
+extern volatile raw_photo_t* raw_buffer_3;
+extern volatile raw_photo_t* raw_buffers[NUM_BUFFERS];
+
+// Metadata for compressed photo buffer
+extern volatile compressed_metadata_t* compressed_metadata[MAX_COMPRESSED_PICS];
+extern          uint16_t* compressed_photo_space;
+extern          uint16_t* current_compressed_address;
+extern 			uint8_t current_compressed_index;
+
+extern volatile compressed_metadata_t* compressed_metadata_FRAM[MAX_COMPRESSED_PICS];
+extern volatile uint16_t* compressed_photo_space_FRAM;
+
+extern volatile raw_photo_t* p;					// helper pointer to raw photo
+extern volatile uint16_t* p_raw;				// helper pointer to compressed memory space
+extern volatile uint8_t frame_done;
+extern volatile uint16_t raw_photo_number_global;
 
 
 /**********************************************************
@@ -130,7 +145,7 @@ void HAL_DCMI_XferCpltCallback(DMA_HandleTypeDef *hdma);
  * the corresponding buffer number and the corresponding
  * frame index in that buffer
  **********************************************************/
-HAL_StatusTypeDef DCMICapture(uint8_t camera_number, uint8_t buffer_number);
+HAL_StatusTypeDef DCMICapture(uint8_t camera_number, uint8_t buffer_number, uint8_t *opcode);
 
 /**********************************************************
  * Computes the percentage of black pixels in the image
@@ -151,7 +166,12 @@ void ComputeBlackPercentage(float *result, uint8_t buffer);
  *              1 = good, 2 = standard, 3 = poor
  *   - compressed_size: pointer to store resulting size
  **********************************************************/
-HAL_StatusTypeDef CompressToJPEG(uint8_t buffer_number, uint8_t quality, uint32_t *compressed_size);
+HAL_StatusTypeDef CompressToJPEG(uint8_t buffer_number, uint8_t quality, uint32_t *compressed_size, uint8_t *opcode);
+
+/**********************************************************
+ * Allocates memory for raw photo buffers
+ **********************************************************/
+void init_camera_buffers(void);
 
 #endif /* __PHOTO_H__ */
 

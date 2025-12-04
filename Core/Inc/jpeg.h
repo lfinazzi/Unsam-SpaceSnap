@@ -99,6 +99,7 @@ extern "C"
 
 // Include necesario para tipos uint8_t, uint32_t, etc.
 #include <stdint.h>
+#include "photo.h"
 
 // - tje_encode_to_memory -
 //
