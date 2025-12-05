@@ -1,0 +1,15 @@
+../Core/Src/fram.c:29:6:FRAM_InitDelay	4	static
+../Core/Src/fram.c:36:20:delay_us	24	static,ignoring_inline_asm
+../Core/Src/fram.c:44:20:FRAM_SelectCS	8	static
+../Core/Src/fram.c:49:20:FRAM_ReleaseCS	8	static
+../Core/Src/fram.c:55:20:fram_optional_delay	16	static
+../Core/Src/fram.c:61:6:wExtMem	32	static
+../Core/Src/fram.c:86:10:rExtMem	24	static
+../Core/Src/fram.c:106:6:uExtMem	16	static
+../Core/Src/fram.c:116:6:sExtMem	24	static
+../Core/Src/fram.c:125:6:cExtMem	32	static
+../Core/Src/fram.c:136:6:pExtMem	32	static
+../Core/Src/fram.c:160:6:mExtMem	24	static
+../Core/Src/fram.c:177:6:wExtMem_DataSet	32	static
+../Core/Src/fram.c:205:6:Init_status	24	static
+../Core/Src/fram.c:217:6:UpdateStatus	16	static

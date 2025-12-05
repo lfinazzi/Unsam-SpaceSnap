@@ -12,6 +12,7 @@
 #include "dcmi.h"
 #include "jpeg.h"
 #include "command.h"
+#include "fram.h"
 
 #define TJE_IMPLEMENTATION													// adds compression library
 
@@ -68,7 +69,11 @@ typedef struct {
 #define END_OF_MEMORY 				  	 (COMPRESSED_DATA_BASE_ADDR) + (0x7A120000U)   // Start: 0x6000_0000, Capacity: 2048M 16b addresses
 
 // ----------------------------- FRAM Memory ---------------------------
-#define START_ADDR_FRAM  				 (0x0)
+#define START_ADDR_FRAM  				 	(0x0U)
+#define PARAMETER_BYTES 					(200U)		// left for parameters that must survive power down
+#define COMPRESSED_METADATA_BASE_ADDR_FRAM	(START_ADDR_FRAM) + (PARAMETER_BYTES)
+#define COMPRESSED_DATA_BASE_ADDR_FRAM	    (COMPRESSED_METADATA_BASE_ADDR_FRAM) + (MAX_COMPRESSED_PICS * sizeof(compressed_metadata_t))
+#define END_ADDR_FRAM					 	(0x7A120000U)
 
 // ------------------------- Calculation constants ---------------------
 #define BLACK_THRESHOLD_UNITS 			 (0.0079f)						// Default Y threshold for identifying black pixels
@@ -88,13 +93,18 @@ extern          uint16_t* current_compressed_address;
 extern 			uint8_t current_compressed_index;
 
 extern volatile compressed_metadata_t* compressed_metadata_FRAM[MAX_COMPRESSED_PICS];
-extern volatile uint16_t* compressed_photo_space_FRAM;
+extern uint8_t* compressed_photo_space_FRAM;
+extern uint8_t* current_compressed_address_FRAM;
+extern uint8_t current_compressed_index_FRAM;
+
 
 extern volatile raw_photo_t* p;					// helper pointer to raw photo
-extern volatile uint16_t* p_raw;				// helper pointer to compressed memory space
+extern volatile uint16_t* p_raw;				// helper pointer to compressed memory spac - 16b
+extern volatile uint8_t* p_raw8;				// helper pointer to compressed memory space - 8b
 extern volatile uint8_t frame_done;
 extern volatile uint16_t raw_photo_number_global;
 
+extern volatile uint16_t photos_taken;
 
 /**********************************************************
  * Function to initialize parameters for both cameras

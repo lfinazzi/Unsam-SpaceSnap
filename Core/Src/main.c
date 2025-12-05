@@ -26,6 +26,9 @@
 #include "gpio.h"
 #include "fsmc.h"
 #include "photo.h"
+#include "fram.h"
+
+#include <stdio.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -48,6 +51,8 @@
 #define COMM_UART	// defines communication with LS-02 as UART
 //#define COMM_I2C	// defines communication with LS-02 as i2C
 
+#define USE_FULL_ASSERT
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -63,6 +68,8 @@ typedef enum {								// State machine for program flow
 uint32_t timestamp;
 char *timestamp_string;
 char *log_message; 							// placeholder for log messages
+status_t *mission_status;
+
 
 volatile raw_photo_t* raw_buffer_1;
 volatile raw_photo_t* raw_buffer_2;
@@ -75,7 +82,28 @@ uint16_t* compressed_photo_space;		// TODO - Check how we can initialize this me
 uint16_t* current_compressed_address;
 uint8_t current_compressed_index;
 
-volatile uint16_t raw_photo_number_global;
+uint8_t* compressed_photo_space_FRAM;
+uint8_t* current_compressed_address_FRAM;
+uint8_t current_compressed_index_FRAM;
+
+// global camera registers to write and their parameters
+volatile uint8_t camera_regs_A[20];
+volatile uint8_t camera_regs_B[20];
+volatile uint8_t camera_params_A[20];
+volatile uint8_t camera_params_B[20];
+
+// timestamp saved in FRAM
+volatile uint32_t ts_fram;
+
+// Total photos taken
+volatile uint16_t photos_taken;
+
+// Total frames sent
+volatile uint32_t total_frames_sent;
+
+// Total time on
+volatile uint32_t time_on;
+
 
 /* USER CODE END PV */
 
@@ -113,7 +141,13 @@ int main(void)
   const command_t* current_command_pointer;					// pointer to current command
   uint8_t rx_buffer_copy[INSTRUCTION_SIZE];					// copy of rx buffer in program memory
   HAL_StatusTypeDef ret = 0;								// return for ExecuteCommand()
-  raw_photo_number_global = 0;	// TODO - Save this in FRAM and initialize it here to preserve raw photo number in case of power down
+
+  Init_status(mission_status);					// loads status from FRAM memory
+
+  photos_taken = mission_status->photos_taken;
+  ts_fram = mission_status->time_on;
+  total_frames_sent = mission_status->total_frames_sent;		// TODO - code to update status in FRAM
+
 
   MX_FSMC_Init();											// initializes external SRAM
   MX_DCMI_Init();											// Initializes DCMI
@@ -127,8 +161,13 @@ int main(void)
   /* USER CODE BEGIN SysInit */
 
   init_camera_buffers();		// Allocates memory for raw photo buffers
+
+  // FRAM initialization
+  FRAM_InitDelay();
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET); 	// ensure CS high
+
   // TODO - Load contents of FRAM to SRAM (backup in case of power down)
-  timestamp = HAL_GetTick(); 	// system timestamp in 1ms intervals - Updated by interrupt
+  timestamp = ts_fram + HAL_GetTick(); 	// system timestamp in 1ms intervals - Updated by interrupt
 
   /* USER CODE END SysInit */
 
@@ -273,6 +312,9 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+
+	perror("kp");
+
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

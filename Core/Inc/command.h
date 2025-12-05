@@ -30,6 +30,7 @@ typedef struct {
     uint32_t timeout_ms;              // Expected max. execution time in ms
 } command_t;
 
+
 const extern command_t command_table[NUM_COMMANDS];
 
 // Lookup and execution functions

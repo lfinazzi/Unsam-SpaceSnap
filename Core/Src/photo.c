@@ -16,7 +16,8 @@
 #include "ls_comms.h"
 
 volatile raw_photo_t* p;					// helper pointer for raw photos
-volatile uint16_t* p_raw;					// helper pointer for compressed memory space
+volatile uint16_t* p_raw;					// helper pointer for compressed memory space - 16b
+volatile uint8_t* p_raw8;					// helper pointer for compressed memory space - 8b
 volatile uint8_t frame_done = 0;
 
 HAL_StatusTypeDef Camera_Init(void)
@@ -130,8 +131,8 @@ HAL_StatusTypeDef DCMICapture(uint8_t camera_number, uint8_t buffer_number, uint
 	}
 
 	// saves metadata after saving photo
-	p->designator = raw_photo_number_global;
-	raw_photo_number_global++;					// increments the counter by one. TODO - Save this change in FRAM
+	p->designator = photos_taken;
+	photos_taken++;						// increments the counter by one. TODO - Save this change in FRAM pending (Implement function!)
 
 	uint16_t opcode0 = (opcode[1] << 8) | opcode[0];
 	uint16_t opcode1 = (opcode[3] << 8) | opcode[2];
@@ -191,7 +192,7 @@ HAL_StatusTypeDef CompressToJPEG(uint8_t buffer_number, uint8_t quality, uint32_
 		H,  // width = 640
 		L,  // height = 480
 		3,  // num_components = 3 for YCbCr
-		(const unsigned char *)p->data			// TODO: Check this casting
+		(const unsigned char *)(p->data)			// TODO: Check this casting
 	);
 
 	if (result == 0) {

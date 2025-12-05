@@ -30,7 +30,7 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
 	if (hi2c->Instance == I2C3) {
 		new_command_received = 1;
 		/* Re-arm */
-		HAL_I2C_Slave_Receive_IT(&hi2c3, (uint8_t *)rx_buffer, INSTRUCTION_SIZE);
+		HAL_I2C_Slave_Receive_IT(&hi2c3, (uint8_t *)rx_buffer, INSTRUCTION_SIZE);	// TODO - check if Slave_receive or Master_receive
 	}
 }
 
