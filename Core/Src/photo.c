@@ -36,7 +36,31 @@ HAL_StatusTypeDef CameraConfig(uint8_t camera)	// TODO
 	// transfers done 8b at a time, MSB FIRST
 	// TODO - camera configuration. This needs to be called every time the camera is turned on!
 
-	//HAL_StatusTypeDef st;
+	HAL_StatusTypeDef st;
+
+	// Assert and de-assert software reset to start from defaults
+	st = cam_write_reg16_uint16(camera, 0x001A, 0x0001);
+	if (st != HAL_OK) return st;
+	HAL_Delay(1);
+	st = cam_write_reg16_uint16(camera, 0x001A, 0x0000);
+	if (st != HAL_OK) return st;
+
+	// Configure pad slew rates (PIXCLK / SPI / DOUT)
+	st = cam_write_reg16_uint16(camera, 0x001E, 0x0220);
+	if (st != HAL_OK) return st;
+
+	// Progressive scan VGA60
+	st = cam_write_reg16_uint16(camera, 0xC858, 0x0001);
+	if (st != HAL_OK) return st;
+
+	// YUV422 output 
+	st = cam_write_reg16_uint16(camera, 0xC96C, 0x0000);
+	if (st != HAL_OK) return st;
+
+	// Enable parallel port in progressive mode with continuous PIXCLK
+	st = cam_write_reg16_uint16(camera, 0xC972, 0x0005);
+	if (st != HAL_OK) return st;
+
 
 	return HAL_OK;
 }
